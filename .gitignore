@@ -16,7 +16,12 @@ _site/
 .checkstyle
 *.log
 .DS_Store
-/spring-cloud-sleuth-core/nb-configuration.xml
-/spring-cloud-sleuth-core/nbactions.xml
 build/
 .gradle
+.gradletasknamecache
+nohup.out
+effective.pom
+test-results/
+bin/
+protoc
+.vscode/

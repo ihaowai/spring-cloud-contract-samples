@@ -1,0 +1,109 @@
+buildscript {
+	ext {
+		kotlinVersion = '1.4.10'
+	}
+	repositories {
+		mavenCentral()
+		mavenLocal()
+		maven { url "https://repo.spring.io/snapshot" }
+		maven { url "https://repo.spring.io/milestone" }
+		maven { url "https://repo.spring.io/release" }
+	}
+
+	dependencies {
+		classpath "org.springframework.boot:spring-boot-gradle-plugin:${findProperty('bootVersion') ?: bootVersion}"
+		classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:${kotlinVersion}")
+		classpath("org.jetbrains.kotlin:kotlin-allopen:${kotlinVersion}")
+	}
+}
+
+apply plugin: 'kotlin'
+apply plugin: 'kotlin-spring'
+apply plugin: 'org.springframework.boot'
+apply plugin: 'io.spring.dependency-management'
+apply plugin: 'maven-publish'
+
+group = 'com.example'
+version = '0.0.1-SNAPSHOT'
+sourceCompatibility = '11'
+
+repositories {
+	mavenCentral()
+	mavenLocal()
+	maven { url "https://repo.spring.io/snapshot" }
+	maven { url "https://repo.spring.io/milestone" }
+	maven { url "https://repo.spring.io/release" }
+}
+
+ext {
+	set('springCloudVersion', "${project.findProperty('BOM_VERSION') ?: BOM_VERSION}")
+}
+
+println "Boot Version [${findProperty('bootVersion') ?: bootVersion}], Cloud version [${findProperty('BOM_VERSION') ?: BOM_VERSION}]"
+
+dependencies {
+	implementation("org.springframework.boot:spring-boot-starter-webflux")
+	
+	implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
+	implementation("org.jetbrains.kotlin:kotlin-reflect")
+	implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
+	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor")
+
+	testImplementation("org.springframework.boot:spring-boot-starter-test")
+	testImplementation("org.springframework.security:spring-security-test")
+	testImplementation("io.rest-assured:spring-web-test-client:${springWebTestClientVersion}")
+	testImplementation("io.projectreactor:reactor-test")
+	//remove::start[]
+	testImplementation("org.springframework.cloud:spring-cloud-starter-contract-stub-runner")
+	// remove::end[]
+
+	// for compatibility
+	testImplementation('org.junit.jupiter:junit-jupiter-engine')
+}
+
+dependencyManagement {
+	imports {
+		mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+	}
+}
+
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+	kotlinOptions {
+		freeCompilerArgs = ['-Xjsr305=strict']
+		jvmTarget = '11'
+	}
+}
+
+test {
+	useJUnitPlatform()
+	testLogging {
+		exceptionFormat = 'full'
+	}
+	afterSuite { desc, result ->
+		if (!desc.parent) {
+			println "Results: (${result.testCount} tests, ${result.successfulTestCount} successes, ${result.failedTestCount} failures, ${result.skippedTestCount} skipped)"
+			boolean skipTests = Boolean.parseBoolean(project.findProperty('SKIP_TESTS') ?: "false")
+			if (result.testCount == 0 && !skipTests) {
+				throw new IllegalStateException("No tests were found. Failing the build")
+			}
+		}
+	}
+}
+
+publishing {
+	publications {
+		mavenJava(MavenPublication) {
+			artifact bootJar
+
+			// https://github.com/spring-gradle-plugins/dependency-management-plugin/issues/273
+			versionMapping {
+				usage("java-api") {
+					fromResolutionOf("runtimeClasspath")
+				}
+				usage("java-runtime") {
+					fromResolutionResult()
+				}
+			}
+		}
+	}
+}

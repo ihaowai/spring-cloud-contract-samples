@@ -1,0 +1,19 @@
+{
+  "name": "client",
+  "version": "0.0.0",
+  "license": "MIT",
+  "description": "Simple client app",
+  "repository": "https://registry.npmjs.org/",
+  "scripts": {
+    "ng": "ng",
+    "start": "ng serve",
+    "build": "ng build",
+    "test": "ng test",
+    "lint": "ng lint",
+    "e2e": "ng e2e"
+  },
+  "private": true,
+  "devDependencies": {
+    "restdocs-to-postman": "^2.0.5"
+  }
+}

@@ -1,39 +1,27 @@
 package com.example;
 
-import com.jayway.restassured.module.mockmvc.RestAssuredMockMvc;
-import org.hamcrest.Description;
-import org.hamcrest.TypeSafeMatcher;
-import org.junit.Before;
-import org.junit.runner.RunWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.runners.MockitoJUnitRunner;
+//remove::start[]
 
-import static org.mockito.BDDMockito.given;
-import static org.mockito.Matchers.argThat;
+import io.restassured.config.EncoderConfig;
+import io.restassured.module.mockmvc.RestAssuredMockMvc;
+import io.restassured.module.mockmvc.config.RestAssuredMockMvcConfig;
+//remove::end[]
+import org.junit.jupiter.api.BeforeEach;
 
-@RunWith(MockitoJUnitRunner.class)
 public abstract class BeerRestBase {
+	//remove::start[]
+	ProducerController producerController = new ProducerController(oldEnough());
 
-	@Mock PersonCheckingService personCheckingService;
-	@InjectMocks ProducerController producerController;
-
-	@Before
+	@BeforeEach
 	public void setup() {
-		given(personCheckingService.shouldGetBeer(argThat(oldEnough()))).willReturn(true);
-		RestAssuredMockMvc.standaloneSetup(producerController);
+		// https://github.com/spring-cloud/spring-cloud-contract/issues/1428
+		EncoderConfig encoderConfig = new EncoderConfig().appendDefaultContentCharsetToContentTypeIfUndefined(false);
+		RestAssuredMockMvc.config = new RestAssuredMockMvcConfig().encoderConfig(encoderConfig);
+		RestAssuredMockMvc.standaloneSetup(this.producerController);
 	}
 
-	private TypeSafeMatcher<PersonToCheck> oldEnough() {
-		return new TypeSafeMatcher<PersonToCheck>() {
-			@Override protected boolean matchesSafely(PersonToCheck personToCheck) {
-				return personToCheck.age >= 20;
-			}
-
-			@Override public void describeTo(Description description) {
-
-			}
-		};
+	private PersonCheckingService oldEnough() {
+		return argument -> argument.age >= 20;
 	}
-	
+	//remove::end[]
 }

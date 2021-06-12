@@ -2,56 +2,59 @@ buildscript {
 	repositories {
 		mavenCentral()
 		mavenLocal()
-		maven { url "http://repo.spring.io/snapshot" }
-		maven { url "http://repo.spring.io/milestone" }
-		maven { url "http://repo.spring.io/release" }
+		maven { url "https://repo.spring.io/snapshot" }
+		maven { url "https://repo.spring.io/milestone" }
+		maven { url "https://repo.spring.io/release" }
 	}
 }
 
-plugins {
-	id "io.spring.dependency-management" version "0.6.1.RELEASE"
-}
-
-group = 'com.example'
-version = '0.0.1-SNAPSHOT'
+println "Cloud version [${findProperty('BOM_VERSION') ?: verifierVersion}]"
 
 repositories {
 	mavenCentral()
 	mavenLocal()
-	maven { url "http://repo.spring.io/snapshot" }
-	maven { url "http://repo.spring.io/milestone" }
-	maven { url "http://repo.spring.io/release" }
+	maven { url "https://repo.spring.io/snapshot" }
+	maven { url "https://repo.spring.io/milestone" }
+	maven { url "https://repo.spring.io/release" }
 }
 
+apply plugin: 'groovy'
 apply plugin: 'maven-publish'
-apply plugin: 'java'
-apply plugin: "io.spring.dependency-management"
+apply plugin: 'java-library'
 
+group = 'com.example'
+version = '0.0.1-SNAPSHOT'
+sourceCompatibility = '11'
 
-dependencyManagement {
-	imports {
-		mavenBom "org.springframework.cloud:spring-cloud-dependencies:$BOM_VERSION"
-	}
+dependencies {
+  implementation(platform("org.springframework.cloud:spring-cloud-dependencies:${project.findProperty('BOM_VERSION') ?: BOM_VERSION}"))
 }
 
 dependencies {
-	compile("org.springframework.cloud:spring-cloud-contract-spec")
+	implementation("org.springframework.cloud:spring-cloud-contract-spec")
 }
 
 test {
+	useJUnitPlatform()
 	testLogging {
 		exceptionFormat = 'full'
 	}
 }
 
+
 publishing {
 	publications {
 		mavenJava(MavenPublication) {
 			from components.java
+			// https://github.com/spring-gradle-plugins/dependency-management-plugin/issues/273
+			versionMapping {
+				usage("java-api") {
+					fromResolutionOf("runtimeClasspath")
+				}
+				usage("java-runtime") {
+					fromResolutionResult()
+				}
+			}
 		}
 	}
-}
-
-task wrapper(type: Wrapper) {
-    gradleVersion = '2.14'
 }

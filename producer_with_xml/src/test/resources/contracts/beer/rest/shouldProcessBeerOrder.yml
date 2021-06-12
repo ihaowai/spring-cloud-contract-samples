@@ -1,0 +1,35 @@
+request:
+  method: POST
+  url: /order
+  headers:
+    Content-Type: application/xml
+  body: |
+    <order>
+    <value>123</value>
+    <beerNames>
+    <beerName>abc</beerName>
+    <beerName>def</beerName>
+    <beerName>ghi</beerName>
+    </beerNames>
+    </order>
+response:
+  status: 200
+  headers:
+    Content-Type: application/xml
+  body: |
+    <sale>
+    <transactionUuid>uuid</transactionUuid>
+    <beerNames>
+    <beerName>abc</beerName>
+    <beerName>def</beerName>
+    <beerName>ghi</beerName>
+    </beerNames>
+    </sale>
+  matchers:
+    headers:
+    - key: Content-Type
+      regex: "application/xml.*"
+    body:
+    - path: /sale/transactionUuid/text()
+      type: by_regex
+      predefined: uuid

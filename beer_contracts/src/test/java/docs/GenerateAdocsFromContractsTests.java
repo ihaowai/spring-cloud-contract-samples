@@ -1,13 +1,5 @@
 package docs;
 
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.cloud.contract.spec.Contract;
-import org.springframework.cloud.contract.verifier.util.ContractVerifierDslConverter;
-import org.springframework.core.io.Resource;
-import org.springframework.test.context.junit4.SpringRunner;
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -16,9 +8,18 @@ import java.nio.file.FileVisitor;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Collection;
 import java.util.regex.Pattern;
 
-@RunWith(SpringRunner.class)
+import org.junit.jupiter.api.Test;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cloud.contract.spec.Contract;
+import org.springframework.cloud.contract.verifier.util.ContractVerifierDslConverter;
+import org.springframework.core.io.Resource;
+import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
+
+@SpringJUnitConfig
 public class GenerateAdocsFromContractsTests {
 
 	// TODO: Can be parametrized
@@ -30,7 +31,7 @@ public class GenerateAdocsFromContractsTests {
 	@Test public void should_convert_contracts_into_adoc() throws IOException {
 		final StringBuilder stringBuilder = new StringBuilder();
 		stringBuilder.append(header);
-		final Path rootDir = contracts.getFile().toPath();
+		final Path rootDir = this.contracts.getFile().toPath();
 
 		Files.walkFileTree(rootDir, new FileVisitor<Path>() {
 			private Pattern pattern = Pattern.compile("^.*groovy$");
@@ -44,7 +45,7 @@ public class GenerateAdocsFromContractsTests {
 			@Override
 			public FileVisitResult visitFile(Path path, BasicFileAttributes mainAtts)
 					throws IOException {
-				boolean matches = pattern.matcher(path.toString()).matches();
+				boolean matches = this.pattern.matcher(path.toString()).matches();
 				if (matches) {
 					appendContract(stringBuilder, path);
 				}
@@ -81,29 +82,37 @@ public class GenerateAdocsFromContractsTests {
 		}
 	}
 
-	static StringBuilder appendContract(StringBuilder stringBuilder, Path path)
+	static StringBuilder appendContract(final StringBuilder stringBuilder, Path path)
 			throws IOException {
-		Contract contract = ContractVerifierDslConverter.convert(path.toFile());
+		Collection<Contract> contracts = ContractVerifierDslConverter.convertAsCollection(path.getParent().toFile(), path.toFile());
 		// TODO: Can be parametrized
-		return stringBuilder.append("### ")
-				.append(path.getFileName().toString())
-				.append("\n\n")
-				.append(contract.getDescription())
-				.append("\n\n")
-				.append("#### Contract structure")
-				.append("\n\n")
-				.append("[source,java,indent=0]")
-				.append("\n")
-				.append("----")
-				.append("\n")
-				.append(fileAsString(path))
-				.append("\n")
-				.append("----")
-				.append("\n\n");
+		contracts.forEach(contract -> {
+			stringBuilder.append("### ")
+					.append(path.getFileName().toString())
+					.append("\n\n")
+					.append(contract.getDescription())
+					.append("\n\n")
+					.append("#### Contract structure")
+					.append("\n\n")
+					.append("[source,java,indent=0]")
+					.append("\n")
+					.append("----")
+					.append("\n")
+					.append(fileAsString(path))
+					.append("\n")
+					.append("----")
+					.append("\n\n");
+		});
+		return stringBuilder;
 	}
 
-	static String fileAsString(Path path) throws IOException {
-		byte[] encoded = Files.readAllBytes(path);
-		return new String(encoded, StandardCharsets.UTF_8);
+	static String fileAsString(Path path) {
+		try {
+			byte[] encoded = Files.readAllBytes(path);
+			return new String(encoded, StandardCharsets.UTF_8);
+		}
+		catch (IOException e) {
+			throw new RuntimeException(e);
+		}
 	}
 }

@@ -1,0 +1,136 @@
+buildscript {
+	repositories {
+		mavenCentral()
+		mavenLocal()
+		maven { url "https://repo.spring.io/snapshot" }
+		maven { url "https://repo.spring.io/milestone" }
+		maven { url "https://repo.spring.io/release" }
+	}
+	dependencies {
+		classpath "org.springframework.boot:spring-boot-gradle-plugin:${findProperty('bootVersion') ?: bootVersion}"
+		//remove::start[]
+		classpath "org.springframework.cloud:spring-cloud-contract-gradle-plugin:${findProperty('verifierVersion') ?: verifierVersion}"
+		// remove::end[]
+		classpath "io.spring.gradle:dependency-management-plugin:1.0.10.RELEASE"
+	}
+}
+
+apply plugin: 'groovy'
+apply plugin: 'org.springframework.boot'
+apply plugin: 'io.spring.dependency-management'
+//remove::start[]
+apply plugin: 'spring-cloud-contract'
+// remove::end[]
+apply plugin: 'maven-publish'
+
+group = 'com.example'
+version = '0.0.1-SNAPSHOT'
+sourceCompatibility = '11'
+
+repositories {
+	mavenCentral()
+	mavenLocal()
+	maven { url "https://repo.spring.io/snapshot" }
+	maven { url "https://repo.spring.io/milestone" }
+	maven { url "https://repo.spring.io/release" }
+}
+
+ext {
+	set('springCloudVersion', "${project.findProperty('BOM_VERSION') ?: BOM_VERSION}")
+}
+
+println "Boot Version [${findProperty('bootVersion') ?: bootVersion}], Cloud version [${findProperty('BOM_VERSION') ?: BOM_VERSION}], Contract version [${findProperty('verifierVersion') ?: verifierVersion}]"
+
+dependencies {
+	implementation("org.springframework.boot:spring-boot-starter-web")
+	implementation("org.springframework.boot:spring-boot-starter-actuator")
+	implementation("org.springframework.cloud:spring-cloud-starter-stream-rabbit")
+
+	testImplementation(group: 'org.springframework.cloud', name: 'spring-cloud-stream', classifier: 'test-binder')
+	testImplementation('javax.inject:javax.inject:1')
+	//remove::start[]
+	testImplementation("org.springframework.cloud:spring-cloud-starter-contract-verifier")
+	// remove::end[]
+
+	// for compatibility
+	testImplementation('org.junit.jupiter:junit-jupiter-engine')
+}
+
+dependencyManagement {
+	imports {
+		mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+	}
+}
+
+//remove::start[]
+contracts {
+	testFramework = "JUNIT5"
+	// We want to pick contracts from a Git repository
+	contractDependency {
+		stringNotation = "${project.group}:${project.name}:${project.version}"
+	}
+	/*
+	We reuse the contract dependency section to set up the path
+	to the folder that contains the contract definitions. In our case the
+	path will be /groupId/artifactId/version/contracts
+	 */
+	contractRepository {
+		repositoryUrl = "git://file://${new File(project.rootDir, "../target")}/contract_git/"
+	}
+	// The mode can't be classpath
+	contractsMode = "LOCAL"
+	// Base package for generated tests
+	basePackageForTests = "com.example"
+	baseClassMappings {
+		baseClassMapping(".*messaging.*", "com.example.BeerMessagingBase")
+		baseClassMapping(".*rest.*", "com.example.BeerRestBase")
+	}
+}
+
+/*
+In this scenario we want to publish stubs to SCM whenever
+the `publish` task is executed
+*/
+publish.dependsOn("publishStubsToScm")
+publishToMavenLocal.dependsOn("publishStubsToScm")
+// remove::end[]
+
+//remove::start[]
+contractTest {
+	useJUnitPlatform()
+	testLogging {
+		exceptionFormat = 'full'
+	}
+	afterSuite { desc, result ->
+		if (!desc.parent) {
+			println "Results: (${result.testCount} tests, ${result.successfulTestCount} successes, ${result.failedTestCount} failures, ${result.skippedTestCount} skipped)"
+			boolean skipTests = Boolean.parseBoolean(project.findProperty('SKIP_TESTS') ?: "false")
+			if (result.testCount == 0 && !skipTests) {
+				throw new IllegalStateException("No tests were found. Failing the build")
+			}
+		}
+	}
+}
+// remove::end[]
+
+publishing {
+	publications {
+		mavenJava(MavenPublication) {
+			artifact bootJar
+			
+			// remove::start[]
+			artifact verifierStubsJar
+			// remove::end[]
+
+			// https://github.com/spring-gradle-plugins/dependency-management-plugin/issues/273
+			versionMapping {
+				usage("java-api") {
+					fromResolutionOf("runtimeClasspath")
+				}
+				usage("java-runtime") {
+					fromResolutionResult()
+				}
+			}
+		}
+	}
+}

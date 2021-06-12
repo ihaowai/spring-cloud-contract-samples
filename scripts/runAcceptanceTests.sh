@@ -1,89 +1,86 @@
-#!/usr/bin/env bash
+#!/bin/bash -x
 
-set -e
-rm -rf ~/.m2/repository/com/example/
-ROOT=`pwd`
+set -o errexit
+set -o errtrace
+set -o nounset
+set -o pipefail
 
-cat <<'EOF'
- .----------------.  .----------------.  .----------------.  .----------------.  .-----------------.
-| .--------------. || .--------------. || .--------------. || .--------------. || .--------------. |
-| | ____    ____ | || |      __      | || | ____   ____  | || |  _________   | || | ____  _____  | |
-| ||_   \  /   _|| || |     /  \     | || ||_  _| |_  _| | || | |_   ___  |  | || ||_   \|_   _| | |
-| |  |   \/   |  | || |    / /\ \    | || |  \ \   / /   | || |   | |_  \_|  | || |  |   \ | |   | |
-| |  | |\  /| |  | || |   / ____ \   | || |   \ \ / /    | || |   |  _|  _   | || |  | |\ \| |   | |
-| | _| |_\/_| |_ | || | _/ /    \ \_ | || |    \ ' /     | || |  _| |___/ |  | || | _| |_\   |_  | |
-| ||_____||_____|| || ||____|  |____|| || |     \_/      | || | |_________|  | || ||_____|\____| | |
-| |              | || |              | || |              | || |              | || |              | |
-| '--------------' || '--------------' || '--------------' || '--------------' || '--------------' |
- '----------------'  '----------------'  '----------------'  '----------------'  '----------------'
-EOF
+export ROOT=$(pwd)
+export CI="${CI:-false}"
 
-echo -e "\n\nInstalling common\n\n"
-cd ${ROOT}/common
-./mvnw clean install
-cd ${ROOT}
+source "${ROOT}"/scripts/clean.sh
 
-echo -e "\n\nBuilding everything\n\n"
-./mvnw clean install -Ptest
+trap 'clean && clearDocker' EXIT
 
-
-cat <<'EOF'
- .----------------.  .----------------.  .-----------------. .----------------.  .----------------.  .----------------.
-| .--------------. || .--------------. || .--------------. || .--------------. || .--------------. || .--------------. |
-| | ____    ____ | || |      __      | || | ____  _____  | || | _____  _____ | || |      __      | || |   _____      | |
-| ||_   \  /   _|| || |     /  \     | || ||_   \|_   _| | || ||_   _||_   _|| || |     /  \     | || |  |_   _|     | |
-| |  |   \/   |  | || |    / /\ \    | || |  |   \ | |   | || |  | |    | |  | || |    / /\ \    | || |    | |       | |
-| |  | |\  /| |  | || |   / ____ \   | || |  | |\ \| |   | || |  | '    ' |  | || |   / ____ \   | || |    | |   _   | |
-| | _| |_\/_| |_ | || | _/ /    \ \_ | || | _| |_\   |_  | || |   \ `--' /   | || | _/ /    \ \_ | || |   _| |__/ |  | |
-| ||_____||_____|| || ||____|  |____|| || ||_____|\____| | || |    `.__.'    | || ||____|  |____|| || |  |________|  | |
-| |              | || |              | || |              | || |              | || |              | || |              | |
-| '--------------' || '--------------' || '--------------' || '--------------' || '--------------' || '--------------' |
- '----------------'  '----------------'  '----------------'  '----------------'  '----------------'  '----------------'
-EOF
-
-echo -e "\n\nBuilding beer_contracts\n\n"
-cd "${ROOT}/beer_contracts"
-
-echo -e "\n\nBuilding only the subset of contracts\n\n"
-cd "${ROOT}/beer_contracts/src/main/resources/contracts/com/example/beer-api-producer-external"
-cp "${ROOT}/mvnw" .
-cp -r "${ROOT}/.mvn" .
-./mvnw clean install -DskipTests
-
-rm -rf ~/.m2/repository/com/example/
-
-
-cat <<'EOF'
- .----------------.  .----------------.  .----------------.  .----------------.  .----------------.  .----------------.
-| .--------------. || .--------------. || .--------------. || .--------------. || .--------------. || .--------------. |
-| |    ______    | || |  _______     | || |      __      | || |  ________    | || |   _____      | || |  _________   | |
-| |  .' ___  |   | || | |_   __ \    | || |     /  \     | || | |_   ___ `.  | || |  |_   _|     | || | |_   ___  |  | |
-| | / .'   \_|   | || |   | |__) |   | || |    / /\ \    | || |   | |   `. \ | || |    | |       | || |   | |_  \_|  | |
-| | | |    ____  | || |   |  __ /    | || |   / ____ \   | || |   | |    | | | || |    | |   _   | || |   |  _|  _   | |
-| | \ `.___]  _| | || |  _| |  \ \_  | || | _/ /    \ \_ | || |  _| |___.' / | || |   _| |__/ |  | || |  _| |___/ |  | |
-| |  `._____.'   | || | |____| |___| | || ||____|  |____|| || | |________.'  | || |  |________|  | || | |_________|  | |
-| |              | || |              | || |              | || |              | || |              | || |              | |
-| '--------------' || '--------------' || '--------------' || '--------------' || '--------------' || '--------------' |
- '----------------'  '----------------'  '----------------'  '----------------'  '----------------'  '----------------'
-EOF
-
-rm -rf ~/.m2/repository/com/example/
-
-function build() {
-    local folder="${1}"
-    echo -e "\n\nBuilding ${folder}\n\n"
-    cd "${ROOT}/${folder}"
-    ./gradlew clean build publishToMavenLocal
-    cd "${ROOT}"
+function startDockerCompose() {
+	pushd "${ROOT}"/docker
+	docker-compose pull
+	docker-compose up -d
+	popd
 }
 
-echo -e "\n\nBuilding the external contracts jar\n\n"
-cd "${ROOT}/beer_contracts"
-./mvnw clean install
+clean
 
-build common
-build producer
-build producer_with_external_contracts
-build producer_with_restdocs
-build consumer
-build consumer_with_restdocs
+export SKIP_BUILD="${SKIP_BUILD:-false}"
+
+if [[ "${SKIP_BUILD}" != "true" ]]; then
+	. ${ROOT}/scripts/runMavenBuilds.sh
+
+	. ${ROOT}/scripts/runManual.sh
+
+	. ${ROOT}/scripts/runGradleBuilds.sh
+fi
+
+export SKIP_COMPATIBILITY="${SKIP_COMPATIBILITY:-false}"
+
+if [[ "${SKIP_COMPATIBILITY}" != "true" ]]; then
+	echo -e "\n\nWill run compatibility build\n\n"
+	startDockerCompose
+	# TODO: Go back to snapshots one day
+	export CURRENT_BOOT_VERSION="2.4.0"
+	. ${ROOT}/scripts/runCompatibilityBuild.sh
+fi
+
+export SKIP_DOCS="${SKIP_DOCS:-false}"
+
+if [[ "${CI}" == "true" ]]; then
+	echo "Skipping docs for CI build. Can't tweak Gradle's memory."
+	SKIP_DOCS="true"
+fi
+
+if [[ "${SKIP_DOCS}" != "true" ]]; then
+	cat <<'EOF'
+ .----------------.  .----------------.  .----------------.  .----------------.
+| .--------------. || .--------------. || .--------------. || .--------------. |
+| |  ________    | || |     ____     | || |     ______   | || |    _______   | |
+| | |_   ___ `.  | || |   .'    `.   | || |   .' ___  |  | || |   /  ___  |  | |
+| |   | |   `. \ | || |  /  .--.  \  | || |  / .'   \_|  | || |  |  (__ \_|  | |
+| |   | |    | | | || |  | |    | |  | || |  | |         | || |   '.___`-.   | |
+| |  _| |___.' / | || |  \  `--'  /  | || |  \ `.___.'\  | || |  |`\____) |  | |
+| | |________.'  | || |   `.____.'   | || |   `._____.'  | || |  |_______.'  | |
+| |              | || |              | || |              | || |              | |
+| '--------------' || '--------------' || '--------------' || '--------------' |
+ '----------------'  '----------------'  '----------------'  '----------------'
+EOF
+
+	echo "Generating docs"
+	cd ${ROOT} && ./gradlew generateDocumentation
+
+	echo "Preparing for docs"
+	cd ${ROOT} && ./gradlew prepareForWorkshops
+
+	echo "Building the whole project again after preparing for docs"
+	export BUILD_COMMON=false
+	export SKIP_TESTS=true
+	export PREPARE_FOR_WORKSHOPS=true
+
+	clean
+	clearDocker
+
+	. ${ROOT}/scripts/runMavenBuilds.sh
+
+	. ${ROOT}/scripts/runGradleBuilds.sh
+
+else
+	echo -e "\n\nSkipping docs generation\n\n"
+fi
